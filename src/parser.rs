@@ -228,4 +228,23 @@ mod tests {
         let test_2 = Trace{name: "test_two".into(), start, duration: Duration::from_millis(300), thread_number:1};
         assert_eq!(parse(reader), vec![test_1, test_2]);
     }
+
+    #[test]
+    fn test_parse_parallel_with_thread_reuse() {
+        let ctest_output = r#"
+                Start  1: test_one
+                Start  2: test_two
+            1/3 Test #1: test_one ......................   Passed   0.20 sec
+                Start  3: test_three
+            2/3 Test #2: test_two ......................   Passed   0.30 sec
+            3/3 Test #3: test_three ......................   Passed   0.50 sec
+            "#;
+
+        let reader = BufReader::new(ctest_output.as_bytes());
+        let start = Duration::new(0, 0);
+        let test_1 = Trace{name: "test_one".into(), start, duration: Duration::from_millis(200), thread_number:0};
+        let test_2 = Trace{name: "test_two".into(), start, duration: Duration::from_millis(300), thread_number:1};
+        let test_3 = Trace{name: "test_three".into(), start: Duration::from_millis(200), duration: Duration::from_millis(500), thread_number:0};
+        assert_eq!(parse(reader), vec![test_1, test_2, test_3]);
+    }
 }
