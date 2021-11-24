@@ -3,11 +3,13 @@
 //    (See accompanying file LICENSE or copy at
 //          https://www.boost.org/LICENSE_1_0.txt)
 
-use nom::bytes::complete::{take_while1, tag};
+use nom::bytes::complete::{take_while1, tag, is_not, take_until, take_till};
 use nom::IResult;
 use nom::sequence::tuple;
 use nom::character::complete::{char, digit1, space1};
 use std::time::Duration;
+use nom::character::is_digit;
+use nom::number::complete::double;
 
 /// Parse a line that indicates the start of a test.
 /// Returns the name of the test that just started
@@ -38,7 +40,19 @@ fn parse_test_start(i: &str) -> IResult<&str, String> {
 ///     1/1 Test #1: test_stuff ......................***Not Run   0.00 sec
 ///
 fn parse_test_finish(i: &str) -> IResult<&str, (String, Duration)> {
-    Ok(("", ("test_stuff".into(),Duration::from_millis(81))))
+    let test_name = take_while1(|c| c != ' ');
+    let colon = char(':');
+    let test_result = take_till(|c| is_digit(c as u8));
+    let test_number = take_till(|c| c == ':');
+
+    // let (input, (_, _, _, test_name, _, seconds, _, centiseconds, _, _)) = tuple((test_number, colon, space1, test_name, test_result, digit1, char('.'), digit1, space1, tag("sec")))(i)?;
+    let (input, (_, _, _, test_name, _, seconds_str, _, centis_str, _, _)) = tuple((test_number, colon, space1, test_name, test_result, digit1, char('.'), digit1, space1, tag("sec")))(i)?;
+
+    let seconds = seconds_str.parse().unwrap();
+    let centis: u64 = centis_str.parse().unwrap();
+    let millis = centis * 10;
+    let duration = Duration::new(seconds, 0) + Duration::from_millis(millis);
+    Ok((input, (test_name.into(), duration)))
 
 }
 
@@ -64,7 +78,7 @@ mod tests {
     fn test_parse_failed_test_finish(){
         let ctest_output = "1/1 Test #1: test_stuff .......................***Failed    0.81 sec";
 
-        let duration = Duration::from_millis(81);
+        let duration = Duration::from_millis(810);
         assert_eq!(parse_test_finish(ctest_output), Ok(("", ("test_stuff".into(), duration))));
     }
 
