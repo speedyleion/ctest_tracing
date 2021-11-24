@@ -9,6 +9,27 @@ use nom::character::is_digit;
 use nom::sequence::tuple;
 use nom::IResult;
 use std::time::Duration;
+use std::io::{BufReader, BufRead, Read};
+
+#[derive(PartialEq, Debug)]
+pub struct Trace {
+    name: String,
+    start: Duration,
+    duration: Duration,
+}
+
+pub fn parse<R: Read>(reader: BufReader<R>) -> Vec<Trace>{
+    for l in reader.lines(){
+        let line = l.unwrap();
+        if let Ok((_, test_case)) = parse_test_start(&line) {
+            println!("{:?}", test_case);
+        }
+    }
+    let name = "a_test".into();
+    let start = Duration::new(0, 0);
+    let duration = Duration::from_millis(200);
+    vec![Trace{name, start, duration}]
+}
 
 /// Parse a line that indicates the start of a test.
 /// Returns the name of the test that just started
@@ -123,4 +144,18 @@ mod tests {
             Ok(("", ("test_stuff".into(), duration)))
         );
     }
+
+    #[test]
+    fn test_parse_single_test_result() {
+        let ctest_output = r#"
+                Start  1: a_test";
+            1/1 Test #1: a_test ......................   Passed   0.20 sec"#;
+
+        let reader = BufReader::new(ctest_output.as_bytes());
+        let name = "a_test".into();
+        let start = Duration::new(0, 0);
+        let duration = Duration::from_millis(200);
+        assert_eq!(parse(reader), vec![Trace{name, start, duration}]);
+    }
+
 }
