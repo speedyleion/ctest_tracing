@@ -22,15 +22,19 @@ pub struct Trace {
 pub fn parse<R: Read>(reader: BufReader<R>) -> Vec<Trace>{
     let mut running_tests: HashMap<String, Duration> = HashMap::new();
     let mut traces = vec![];
+    let mut trace_timer = Duration::new(0, 0);
     for l in reader.lines(){
         let line = l.unwrap();
         if let Ok((_, test_case)) = parse_test_start(&line) {
-            running_tests.insert(test_case, Duration::new(0, 0));
+            running_tests.insert(test_case, trace_timer.clone());
             continue;
         }
         if let Ok((_, (test_case, duration))) = parse_test_finish(&line) {
             match running_tests.remove(&test_case) {
-                Some(start) => traces.push(Trace{name: test_case, start, duration}),
+                Some(start) => {
+                    traces.push(Trace{name: test_case, start, duration});
+                    trace_timer = start + duration;
+                },
                 // Happens for tests that aren't run
                 None => ()
             }
@@ -157,7 +161,7 @@ mod tests {
     #[test]
     fn test_parse_single_test_result() {
         let ctest_output = r#"
-                Start  1: a_test";
+                Start  1: a_test
             1/1 Test #1: a_test ......................   Passed   0.20 sec"#;
 
         let reader = BufReader::new(ctest_output.as_bytes());
@@ -187,5 +191,22 @@ mod tests {
 
         let reader = BufReader::new(ctest_output.as_bytes());
         assert_eq!(parse(reader), vec![]);
+    }
+
+    #[test]
+    fn test_parse_serial_tests() {
+        let ctest_output = r#"
+                Start  2: test_one
+            1/2 Test #1: test_one ......................   Passed   0.20 sec
+                Start  2: test_two
+            2/2 Test #2: test_two ......................   Passed   0.20 sec"#;
+
+        let reader = BufReader::new(ctest_output.as_bytes());
+        let start = Duration::new(0, 0);
+        let duration = Duration::from_millis(200);
+        let second_start = duration;
+        let test_1 = Trace{name: "test_one".into(), start, duration};
+        let test_2 = Trace{name: "test_two".into(), start: second_start, duration};
+        assert_eq!(parse(reader), vec![test_1, test_2]);
     }
 }
