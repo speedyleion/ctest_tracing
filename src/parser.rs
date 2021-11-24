@@ -45,15 +45,15 @@ fn parse_test_finish(i: &str) -> IResult<&str, (String, Duration)> {
     let test_result = take_till(|c| is_digit(c as u8));
     let test_number = take_till(|c| c == ':');
 
-    // let (input, (_, _, _, test_name, _, seconds, _, centiseconds, _, _)) = tuple((test_number, colon, space1, test_name, test_result, digit1, char('.'), digit1, space1, tag("sec")))(i)?;
     let (input, (_, _, _, test_name, _, seconds_str, _, centis_str, _, _)) = tuple((test_number, colon, space1, test_name, test_result, digit1, char('.'), digit1, space1, tag("sec")))(i)?;
 
+    // One could use `nom::number::complete::double` to parse the seconds, however this will lose
+    // some precision, i.e. 3.32 seconds will turn into 3.319 in the duration
     let seconds = seconds_str.parse().unwrap();
     let centis: u64 = centis_str.parse().unwrap();
     let millis = centis * 10;
     let duration = Duration::new(seconds, 0) + Duration::from_millis(millis);
     Ok((input, (test_name.into(), duration)))
-
 }
 
 #[cfg(test)]
@@ -88,6 +88,14 @@ mod tests {
 
         let duration = Duration::from_millis(320) + Duration::new(3, 0);
         assert_eq!(parse_test_finish(ctest_output), Ok(("", ("test_me".into(), duration))));
+    }
+
+    #[test]
+    fn test_parse_skipped_test_finish(){
+        let ctest_output = "1/1 Test #1: test_stuff ......................***Not Run   0.00 sec";
+
+        let duration = Duration::new(0, 0);
+        assert_eq!(parse_test_finish(ctest_output), Ok(("", ("test_stuff".into(), duration))));
     }
 }
 
