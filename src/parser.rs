@@ -158,4 +158,16 @@ mod tests {
         assert_eq!(parse(reader), vec![Trace{name, start, duration}]);
     }
 
+    #[test]
+    fn test_parse_single_failed_test_result() {
+        let ctest_output = r#"
+                Start  1: a_failing_test";
+            1/1 Test #1: a_failing_test ......................***Failed   10.00 sec"#;
+
+        let reader = BufReader::new(ctest_output.as_bytes());
+        let name = "a_failing_test".into();
+        let start = Duration::new(0, 0);
+        let duration = Duration::new(10, 0);
+        assert_eq!(parse(reader), vec![Trace{name, start, duration}]);
+    }
 }
