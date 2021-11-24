@@ -9,3 +9,6 @@ edition = "2018"
 nom = "7.1.0"
 clap = "2.33.3"
 serde = "1.0.130"
+
+[dev-dependencies]
+serde_test = "1.0.130"

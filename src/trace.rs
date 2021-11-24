@@ -4,6 +4,7 @@
 //          https://www.boost.org/LICENSE_1_0.txt)
 
 use std::time::Duration;
+use serde::{Serialize, Serializer};
 
 /// represents a trace object
 #[derive(PartialEq, Debug)]
@@ -33,17 +34,39 @@ impl Serialize for Trace {
         where
             S: Serializer,
     {
-        serializer.serialize_i32(*self)
+        serializer.serialize_i32(0)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_test::{assert_tokens, Token, assert_ser_tokens};
 
     #[test]
     fn test_serialize_first_test() {
         let trace = Trace{name: "foo".into(), start: Duration::from_millis(0), duration: Duration::from_millis(300), thread_number: 2};
-        
+
+        assert_ser_tokens(&trace, &[
+            Token::Map { len: Some(8) },
+            Token::String("name"),
+            Token::String("foo"),
+            Token::String("cat"),
+            Token::String("test"),
+            Token::String("ph"),
+            Token::String("X"),
+            Token::String("ts"),
+            Token::I64(0),
+            Token::String("dur"),
+            Token::I64(0),
+            Token::String("pid"),
+            Token::I64(0),
+            Token::String("tid"),
+            Token::I64(2),
+            Token::String("args"),
+            Token::Map { len: Some(0) },
+            Token::MapEnd,
+        ]);
+
     }
 }
