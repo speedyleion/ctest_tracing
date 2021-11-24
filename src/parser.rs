@@ -21,20 +21,23 @@ pub struct Trace {
 }
 
 pub fn parse<R: Read>(reader: BufReader<R>) -> Vec<Trace>{
-    let mut running_tests: HashMap<String, Duration> = HashMap::new();
+    let mut running_tests: HashMap<String, (Duration, u32)> = HashMap::new();
     let mut traces = vec![];
     let mut trace_timer = Duration::new(0, 0);
+    let mut thread_number = 0;
     for l in reader.lines(){
         let line = l.unwrap();
         if let Ok((_, test_case)) = parse_test_start(&line) {
-            running_tests.insert(test_case, trace_timer.clone());
+            running_tests.insert(test_case, (trace_timer.clone(), thread_number));
+            thread_number += 1;
             continue;
         }
         if let Ok((_, (test_case, duration))) = parse_test_finish(&line) {
             match running_tests.remove(&test_case) {
-                Some(start) => {
-                    traces.push(Trace{name: test_case, start, duration, thread_number:0});
+                Some((start, thread)) => {
+                    traces.push(Trace{name: test_case, start, duration, thread_number: thread});
                     trace_timer = start + duration;
+                    thread_number = thread;
                 },
                 // Happens for tests that aren't run
                 None => ()
