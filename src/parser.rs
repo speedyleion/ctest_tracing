@@ -3,6 +3,8 @@
 //    (See accompanying file LICENSE or copy at
 //          https://www.boost.org/LICENSE_1_0.txt)
 
+use crate::trace::Trace;
+
 use nom::bytes::complete::{tag, take_till, take_while1};
 use nom::character::complete::{char, digit1, space1};
 use nom::character::is_digit;
@@ -11,14 +13,6 @@ use nom::IResult;
 use std::time::Duration;
 use std::io::{BufReader, BufRead, Read};
 use std::collections::HashMap;
-
-#[derive(PartialEq, Debug)]
-pub struct Trace {
-    name: String,
-    start: Duration,
-    duration: Duration,
-    thread_number: u32,
-}
 
 pub fn parse<R: Read>(reader: BufReader<R>) -> Vec<Trace>{
     let mut running_tests: HashMap<String, (Duration, u32)> = HashMap::new();
