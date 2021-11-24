@@ -29,8 +29,11 @@ pub fn parse<R: Read>(reader: BufReader<R>) -> Vec<Trace>{
             continue;
         }
         if let Ok((_, (test_case, duration))) = parse_test_finish(&line) {
-            let start = running_tests.remove(&test_case).unwrap();
-            traces.push(Trace{name: test_case, start, duration});
+            match running_tests.remove(&test_case) {
+                Some(start) => traces.push(Trace{name: test_case, start, duration}),
+                // Happens for tests that aren't run
+                None => ()
+            }
             continue;
         }
     }
@@ -175,5 +178,14 @@ mod tests {
         let start = Duration::new(0, 0);
         let duration = Duration::new(10, 0);
         assert_eq!(parse(reader), vec![Trace{name, start, duration}]);
+    }
+
+    #[test]
+    fn test_parse_skipped_test() {
+        let ctest_output = r#"
+            1/1 Test #1: a_failing_test ......................***Not Run   0.00 sec"#;
+
+        let reader = BufReader::new(ctest_output.as_bytes());
+        assert_eq!(parse(reader), vec![]);
     }
 }
