@@ -7,10 +7,12 @@ use nom::bytes::complete::{take_while1, tag};
 use nom::IResult;
 use nom::sequence::tuple;
 use nom::character::complete::{char, digit1, space1};
+use std::time::Duration;
 
 /// Parse a line that indicates the start of a test.
 /// Returns the name of the test that just started
 /// Expected format is:
+///
 ///     Start 30: name_of_test\n
 ///
 fn parse_test_start(i: &str) -> IResult<&str, String> {
@@ -25,13 +27,28 @@ fn parse_test_start(i: &str) -> IResult<&str, String> {
     Ok((input, test_name.into()))
 }
 
+/// Parse a line that indicates a test has finished
+/// Returns the name of the test and the duration
+/// Expected format is:
+///
+///     1/1 Test #1: test_stuff .......................***Failed    0.81 sec
+/// or
+///     1/1 Test #1: test_stuff .......................   Passed    0.74 sec
+/// or
+///     1/1 Test #1: test_stuff ......................***Not Run   0.00 sec
+///
+fn parse_test_finish(i: &str) -> IResult<&str, (String, Duration)> {
+    Ok(("", ("test_stuff".into(),Duration::from_micros(81))))
+
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_parse_test_start(){
-        let ctest_output = " Start 1: start_of_a_test";
+        let ctest_output = "    Start 1: start_of_a_test";
 
         assert_eq!(parse_test_start(ctest_output), Ok(("", "start_of_a_test".into())));
     }
@@ -41,6 +58,14 @@ mod tests {
         let ctest_output = " Start 30: a_different_test";
 
         assert_eq!(parse_test_start(ctest_output), Ok(("", "a_different_test".into())));
+    }
+
+    #[test]
+    fn test_parse_failed_test_finish(){
+        let ctest_output = "1/1 Test #1: test_stuff .......................***Failed    0.81 sec";
+
+        let duration = Duration::from_micros(81);
+        assert_eq!(parse_test_finish(ctest_output), Ok(("", ("test_stuff".into(), duration))));
     }
 }
 
