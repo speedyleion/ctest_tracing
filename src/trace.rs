@@ -17,20 +17,19 @@ pub struct Trace {
 }
 
 impl Serialize for Trace {
-    /// In order to serialize and meet the tracing format,
-    /// https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview#heading=h.f2f0yd51wi15,
-    /// we need:
-    ///
-    ///     {
-    ///        "name": "string",
-    ///        "cat": "string",
-    ///        "ph": "X",
-    ///        "ts": int,
-    ///        "dur": int,
-    ///        "pid": int,
-    ///        "tid": int,
-    ///        "args": {}
-    ///    }
+    //  In order to serialize and meet the tracing format,
+    //  https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview#heading=h.f2f0yd51wi15,
+    //  we need:
+    //
+    //      {
+    //         "name": "string",
+    //         "cat": "string",
+    //         "ph": "X",
+    //         "ts": int,
+    //         "dur": int,
+    //         "pid": int,
+    //         "tid": int
+    //     }
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

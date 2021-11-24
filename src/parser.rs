@@ -10,7 +10,7 @@ use nom::character::complete::{char, digit1, space1};
 use nom::character::is_digit;
 use nom::sequence::tuple;
 use nom::IResult;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::{BufRead, BufReader, Read};
 use std::time::Duration;
 
@@ -18,28 +18,34 @@ pub fn parse<R: Read>(reader: BufReader<R>) -> Vec<Trace> {
     let mut running_tests: HashMap<String, (Duration, u32)> = HashMap::new();
     let mut traces = vec![];
     let mut trace_timer = Duration::new(0, 0);
-    let mut thread_number = 0;
+    let mut max_thread_number = 0;
+    let mut free_threads = VecDeque::new();
     for l in reader.lines() {
         let line = l.unwrap();
         if let Ok((_, test_case)) = parse_test_start(&line) {
+            let thread_number = match free_threads.pop_front() {
+                Some(number) => number,
+                None => {
+                    let number = max_thread_number;
+                    max_thread_number += 1;
+                    number
+                }
+            };
             running_tests.insert(test_case, (trace_timer, thread_number));
-            thread_number += 1;
             continue;
         }
         if let Ok((_, (test_case, duration))) = parse_test_finish(&line) {
-            match running_tests.remove(&test_case) {
-                Some((start, thread)) => {
-                    traces.push(Trace {
-                        name: test_case,
-                        start,
-                        duration,
-                        thread_number: thread,
-                    });
-                    trace_timer = start + duration;
-                    thread_number = thread;
-                }
-                // Happens for tests that aren't run
-                None => (),
+            // When a test is not run it will output the same as a finish message, but won't
+            // have a start message, so won't exist in running_tests
+            if let Some((start, thread)) = running_tests.remove(&test_case) {
+                traces.push(Trace {
+                    name: test_case,
+                    start,
+                    duration,
+                    thread_number: thread,
+                });
+                trace_timer = start + duration;
+                free_threads.push_back(thread);
             }
             continue;
         }
@@ -47,12 +53,12 @@ pub fn parse<R: Read>(reader: BufReader<R>) -> Vec<Trace> {
     traces
 }
 
-/// Parse a line that indicates the start of a test.
-/// Returns the name of the test that just started
-/// Expected format is:
-///
-///     Start 30: name_of_test\n
-///
+//  Parse a line that indicates the start of a test.
+//  Returns the name of the test that just started
+//  Expected format is:
+//
+//      Start 30: name_of_test
+//
 fn parse_test_start(i: &str) -> IResult<&str, String> {
     let space = space1;
     let test_name = take_while1(|c| c != ' ');
@@ -66,16 +72,16 @@ fn parse_test_start(i: &str) -> IResult<&str, String> {
     Ok((input, test_name.into()))
 }
 
-/// Parse a line that indicates a test has finished
-/// Returns the name of the test and the duration
-/// Expected format is:
-///
-///     1/1 Test #1: test_stuff .......................***Failed    0.81 sec
-/// or
-///     1/1 Test #1: test_stuff .......................   Passed    0.74 sec
-/// or
-///     1/1 Test #1: test_stuff ......................***Not Run   0.00 sec
-///
+//  Parse a line that indicates a test has finished
+//  Returns the name of the test and the duration
+//  Expected format is:
+//
+//      1/1 Test #1: test_stuff .......................***Failed    0.81 sec
+//  or
+//      1/1 Test #1: test_stuff .......................   Passed    0.74 sec
+//  or
+//      1/1 Test #1: test_stuff ......................***Not Run   0.00 sec
+//
 fn parse_test_finish(i: &str) -> IResult<&str, (String, Duration)> {
     let test_name = take_while1(|c| c != ' ');
     let colon = char(':');
@@ -296,5 +302,93 @@ mod tests {
             thread_number: 0,
         };
         assert_eq!(parse(reader), vec![test_1, test_2, test_3]);
+    }
+
+    #[test]
+    fn test_parse_common_blocking_test() {
+        // This shows `test_one` blocking both `test_three` and `test_four`.  It could be that
+        // it's a common set up fixture for them.  So thread 0 will get used for `test_one` and
+        // `test_three`.  Since `test_four` is started it should grab the next available thread,
+        // which would need to be `2`, as `test_two` is still running on thread `1`
+        let ctest_output = r#"
+                Start  1: test_one
+                Start  2: test_two
+            1/4 Test #1: test_one ......................   Passed   0.20 sec
+                Start  3: test_three
+                Start  4: test_four
+            3/4 Test #3: test_three ......................   Passed   0.50 sec
+            4/4 Test #3: test_four ......................   Passed   0.50 sec
+            2/4 Test #2: test_two ......................   Passed   10.0 sec
+            "#;
+
+        let reader = BufReader::new(ctest_output.as_bytes());
+        let start = Duration::new(0, 0);
+        let test_1 = Trace {
+            name: "test_one".into(),
+            start,
+            duration: Duration::from_millis(200),
+            thread_number: 0,
+        };
+        let test_2 = Trace {
+            name: "test_two".into(),
+            start,
+            duration: Duration::new(10, 0),
+            thread_number: 1,
+        };
+        let test_3 = Trace {
+            name: "test_three".into(),
+            start: Duration::from_millis(200),
+            duration: Duration::from_millis(500),
+            thread_number: 0,
+        };
+        let test_4 = Trace {
+            name: "test_four".into(),
+            start: Duration::from_millis(200),
+            duration: Duration::from_millis(500),
+            thread_number: 2,
+        };
+        assert_eq!(parse(reader), vec![test_1, test_3, test_4, test_2]);
+    }
+
+    #[test]
+    fn test_parse_two_finish_two_start() {
+        let ctest_output = r#"
+                Start  1: test_one
+                Start  2: test_two
+            1/4 Test #1: test_one ......................   Passed   0.20 sec
+            2/4 Test #2: test_two ......................   Passed   10.0 sec
+                Start  3: test_three
+                Start  4: test_four
+            3/4 Test #3: test_three ......................   Passed   0.50 sec
+            4/4 Test #3: test_four ......................   Passed   0.50 sec
+            "#;
+
+        let reader = BufReader::new(ctest_output.as_bytes());
+        let start = Duration::new(0, 0);
+        let test_1 = Trace {
+            name: "test_one".into(),
+            start,
+            duration: Duration::from_millis(200),
+            thread_number: 0,
+        };
+        let test_2 = Trace {
+            name: "test_two".into(),
+            start,
+            duration: Duration::new(10, 0),
+            thread_number: 1,
+        };
+        let test_3 = Trace {
+            name: "test_three".into(),
+            start: Duration::new(10, 0),
+            duration: Duration::from_millis(500),
+            thread_number: 0,
+        };
+        let test_4 = Trace {
+            name: "test_four".into(),
+            start: Duration::new(10, 0),
+            duration: Duration::from_millis(500),
+            thread_number: 1,
+        };
+        assert_eq!(parse(reader), vec![test_1, test_2, test_3, test_4]);
     }
 }

@@ -3,18 +3,20 @@
 //    (See accompanying file LICENSE or copy at
 //          https://www.boost.org/LICENSE_1_0.txt)
 
-use ctest_tracing::parser::parse;
 use clap::{App, Arg};
+use ctest_tracing::parser::parse;
 use std::fs::File;
 use std::io::BufReader;
 
 fn main() -> std::io::Result<()> {
     let matches = App::new("Ctest Tracing")
         .about("Generates JSON output for use in chrome testing")
-        .arg(Arg::with_name("INPUT")
-            .help("The input ctest data file to use")
-            .required(true)
-            .index(1))
+        .arg(
+            Arg::with_name("INPUT")
+                .help("The input ctest data file to use")
+                .required(true)
+                .index(1),
+        )
         .get_matches();
 
     let input_file = matches.value_of("INPUT").unwrap();
