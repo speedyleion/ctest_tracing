@@ -10,6 +10,7 @@ use nom::sequence::tuple;
 use nom::IResult;
 use std::time::Duration;
 use std::io::{BufReader, BufRead, Read};
+use std::collections::HashMap;
 
 #[derive(PartialEq, Debug)]
 pub struct Trace {
@@ -19,16 +20,21 @@ pub struct Trace {
 }
 
 pub fn parse<R: Read>(reader: BufReader<R>) -> Vec<Trace>{
+    let mut running_tests: HashMap<String, Duration> = HashMap::new();
+    let mut traces = vec![];
     for l in reader.lines(){
         let line = l.unwrap();
         if let Ok((_, test_case)) = parse_test_start(&line) {
-            println!("{:?}", test_case);
+            running_tests.insert(test_case, Duration::new(0, 0));
+            continue;
+        }
+        if let Ok((_, (test_case, duration))) = parse_test_finish(&line) {
+            let start = running_tests.remove(&test_case).unwrap();
+            traces.push(Trace{name: test_case, start, duration});
+            continue;
         }
     }
-    let name = "a_test".into();
-    let start = Duration::new(0, 0);
-    let duration = Duration::from_millis(200);
-    vec![Trace{name, start, duration}]
+    traces
 }
 
 /// Parse a line that indicates the start of a test.
@@ -161,7 +167,7 @@ mod tests {
     #[test]
     fn test_parse_single_failed_test_result() {
         let ctest_output = r#"
-                Start  1: a_failing_test";
+                Start  1: a_failing_test
             1/1 Test #1: a_failing_test ......................***Failed   10.00 sec"#;
 
         let reader = BufReader::new(ctest_output.as_bytes());
