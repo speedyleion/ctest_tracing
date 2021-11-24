@@ -38,7 +38,7 @@ fn parse_test_start(i: &str) -> IResult<&str, String> {
 ///     1/1 Test #1: test_stuff ......................***Not Run   0.00 sec
 ///
 fn parse_test_finish(i: &str) -> IResult<&str, (String, Duration)> {
-    Ok(("", ("test_stuff".into(),Duration::from_micros(81))))
+    Ok(("", ("test_stuff".into(),Duration::from_millis(81))))
 
 }
 
@@ -64,8 +64,16 @@ mod tests {
     fn test_parse_failed_test_finish(){
         let ctest_output = "1/1 Test #1: test_stuff .......................***Failed    0.81 sec";
 
-        let duration = Duration::from_micros(81);
+        let duration = Duration::from_millis(81);
         assert_eq!(parse_test_finish(ctest_output), Ok(("", ("test_stuff".into(), duration))));
+    }
+
+    #[test]
+    fn test_parse_passed_test_finish(){
+        let ctest_output = "10/120 Test #20: test_me .......................   passed    3.32 sec";
+
+        let duration = Duration::from_millis(320) + Duration::new(3, 0);
+        assert_eq!(parse_test_finish(ctest_output), Ok(("", ("test_me".into(), duration))));
     }
 }
 
