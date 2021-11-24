@@ -85,4 +85,36 @@ mod tests {
             ],
         );
     }
+
+    #[test]
+    fn test_serialize_a_second_test() {
+        let trace = Trace {
+            name: "what".into(),
+            start: Duration::from_millis(387),
+            duration: Duration::from_millis(20),
+            thread_number: 13,
+        };
+
+        assert_ser_tokens(
+            &trace,
+            &[
+                Token::Map { len: Some(8) },
+                Token::String("name"),
+                Token::String("what"),
+                Token::String("cat"),
+                Token::String("test"),
+                Token::String("ph"),
+                Token::String("X"),
+                Token::String("ts"),
+                Token::U64(387000),
+                Token::String("dur"),
+                Token::U64(20000),
+                Token::String("pid"),
+                Token::I32(0),
+                Token::String("tid"),
+                Token::U32(13),
+                Token::MapEnd,
+            ],
+        );
+    }
 }
