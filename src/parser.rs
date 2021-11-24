@@ -17,6 +17,7 @@ pub struct Trace {
     name: String,
     start: Duration,
     duration: Duration,
+    thread_number: u32,
 }
 
 pub fn parse<R: Read>(reader: BufReader<R>) -> Vec<Trace>{
@@ -32,7 +33,7 @@ pub fn parse<R: Read>(reader: BufReader<R>) -> Vec<Trace>{
         if let Ok((_, (test_case, duration))) = parse_test_finish(&line) {
             match running_tests.remove(&test_case) {
                 Some(start) => {
-                    traces.push(Trace{name: test_case, start, duration});
+                    traces.push(Trace{name: test_case, start, duration, thread_number:0});
                     trace_timer = start + duration;
                 },
                 // Happens for tests that aren't run
@@ -168,7 +169,7 @@ mod tests {
         let name = "a_test".into();
         let start = Duration::new(0, 0);
         let duration = Duration::from_millis(200);
-        assert_eq!(parse(reader), vec![Trace{name, start, duration}]);
+        assert_eq!(parse(reader), vec![Trace{name, start, duration, thread_number:0}]);
     }
 
     #[test]
@@ -181,7 +182,7 @@ mod tests {
         let name = "a_failing_test".into();
         let start = Duration::new(0, 0);
         let duration = Duration::new(10, 0);
-        assert_eq!(parse(reader), vec![Trace{name, start, duration}]);
+        assert_eq!(parse(reader), vec![Trace{name, start, duration, thread_number:0}]);
     }
 
     #[test]
@@ -196,7 +197,7 @@ mod tests {
     #[test]
     fn test_parse_serial_tests() {
         let ctest_output = r#"
-                Start  2: test_one
+                Start  1: test_one
             1/2 Test #1: test_one ......................   Passed   0.20 sec
                 Start  2: test_two
             2/2 Test #2: test_two ......................   Passed   0.20 sec"#;
@@ -205,8 +206,23 @@ mod tests {
         let start = Duration::new(0, 0);
         let duration = Duration::from_millis(200);
         let second_start = duration;
-        let test_1 = Trace{name: "test_one".into(), start, duration};
-        let test_2 = Trace{name: "test_two".into(), start: second_start, duration};
+        let test_1 = Trace{name: "test_one".into(), start, duration, thread_number:0};
+        let test_2 = Trace{name: "test_two".into(), start: second_start, duration, thread_number:0};
+        assert_eq!(parse(reader), vec![test_1, test_2]);
+    }
+
+    #[test]
+    fn test_parse_parallel_tests() {
+        let ctest_output = r#"
+                Start  1: test_one
+                Start  2: test_two
+            1/2 Test #1: test_one ......................   Passed   0.20 sec
+            2/2 Test #2: test_two ......................   Passed   0.30 sec"#;
+
+        let reader = BufReader::new(ctest_output.as_bytes());
+        let start = Duration::new(0, 0);
+        let test_1 = Trace{name: "test_one".into(), start, duration: Duration::from_millis(200), thread_number:0};
+        let test_2 = Trace{name: "test_two".into(), start, duration: Duration::from_millis(300), thread_number:1};
         assert_eq!(parse(reader), vec![test_1, test_2]);
     }
 }
