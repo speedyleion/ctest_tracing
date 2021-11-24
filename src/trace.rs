@@ -5,6 +5,8 @@
 
 use std::time::Duration;
 use serde::{Serialize, Serializer};
+use serde::ser::SerializeMap;
+use std::collections::HashMap;
 
 /// represents a trace object
 #[derive(PartialEq, Debug)]
@@ -34,7 +36,17 @@ impl Serialize for Trace {
         where
             S: Serializer,
     {
-        serializer.serialize_i32(0)
+        let mut map = serializer.serialize_map(Some(8))?;
+        map.serialize_entry("name", &self.name)?;
+        map.serialize_entry("cat", "test")?;
+        map.serialize_entry("ph", "X")?;
+        let start = self.start.as_micros() as u64;
+        map.serialize_entry("ts", &start)?;
+        let duration = self.duration.as_micros() as u64;
+        map.serialize_entry("dur", &duration)?;
+        map.serialize_entry("pid", &0)?;
+        map.serialize_entry("tid", &self.thread_number)?;
+        map.end()
     }
 }
 
@@ -56,15 +68,13 @@ mod tests {
             Token::String("ph"),
             Token::String("X"),
             Token::String("ts"),
-            Token::I64(0),
+            Token::U64(0),
             Token::String("dur"),
-            Token::I64(0),
+            Token::U64(300000),
             Token::String("pid"),
-            Token::I64(0),
+            Token::I32(0),
             Token::String("tid"),
-            Token::I64(2),
-            Token::String("args"),
-            Token::Map { len: Some(0) },
+            Token::U32(2),
             Token::MapEnd,
         ]);
 
