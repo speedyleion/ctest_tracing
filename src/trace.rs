@@ -3,10 +3,9 @@
 //    (See accompanying file LICENSE or copy at
 //          https://www.boost.org/LICENSE_1_0.txt)
 
-use std::time::Duration;
-use serde::{Serialize, Serializer};
 use serde::ser::SerializeMap;
-use std::collections::HashMap;
+use serde::{Serialize, Serializer};
+use std::time::Duration;
 
 /// represents a trace object
 #[derive(PartialEq, Debug)]
@@ -33,8 +32,8 @@ impl Serialize for Trace {
     ///        "args": {}
     ///    }
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: Serializer,
+    where
+        S: Serializer,
     {
         let mut map = serializer.serialize_map(Some(8))?;
         map.serialize_entry("name", &self.name)?;
@@ -53,30 +52,37 @@ impl Serialize for Trace {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_test::{assert_tokens, Token, assert_ser_tokens};
+    use serde_test::{assert_ser_tokens, Token};
 
     #[test]
     fn test_serialize_first_test() {
-        let trace = Trace{name: "foo".into(), start: Duration::from_millis(0), duration: Duration::from_millis(300), thread_number: 2};
+        let trace = Trace {
+            name: "foo".into(),
+            start: Duration::from_millis(0),
+            duration: Duration::from_millis(300),
+            thread_number: 2,
+        };
 
-        assert_ser_tokens(&trace, &[
-            Token::Map { len: Some(8) },
-            Token::String("name"),
-            Token::String("foo"),
-            Token::String("cat"),
-            Token::String("test"),
-            Token::String("ph"),
-            Token::String("X"),
-            Token::String("ts"),
-            Token::U64(0),
-            Token::String("dur"),
-            Token::U64(300000),
-            Token::String("pid"),
-            Token::I32(0),
-            Token::String("tid"),
-            Token::U32(2),
-            Token::MapEnd,
-        ]);
-
+        assert_ser_tokens(
+            &trace,
+            &[
+                Token::Map { len: Some(8) },
+                Token::String("name"),
+                Token::String("foo"),
+                Token::String("cat"),
+                Token::String("test"),
+                Token::String("ph"),
+                Token::String("X"),
+                Token::String("ts"),
+                Token::U64(0),
+                Token::String("dur"),
+                Token::U64(300000),
+                Token::String("pid"),
+                Token::I32(0),
+                Token::String("tid"),
+                Token::U32(2),
+                Token::MapEnd,
+            ],
+        );
     }
 }

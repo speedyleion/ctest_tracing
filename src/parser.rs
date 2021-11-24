@@ -10,31 +10,36 @@ use nom::character::complete::{char, digit1, space1};
 use nom::character::is_digit;
 use nom::sequence::tuple;
 use nom::IResult;
-use std::time::Duration;
-use std::io::{BufReader, BufRead, Read};
 use std::collections::HashMap;
+use std::io::{BufRead, BufReader, Read};
+use std::time::Duration;
 
-pub fn parse<R: Read>(reader: BufReader<R>) -> Vec<Trace>{
+pub fn parse<R: Read>(reader: BufReader<R>) -> Vec<Trace> {
     let mut running_tests: HashMap<String, (Duration, u32)> = HashMap::new();
     let mut traces = vec![];
     let mut trace_timer = Duration::new(0, 0);
     let mut thread_number = 0;
-    for l in reader.lines(){
+    for l in reader.lines() {
         let line = l.unwrap();
         if let Ok((_, test_case)) = parse_test_start(&line) {
-            running_tests.insert(test_case, (trace_timer.clone(), thread_number));
+            running_tests.insert(test_case, (trace_timer, thread_number));
             thread_number += 1;
             continue;
         }
         if let Ok((_, (test_case, duration))) = parse_test_finish(&line) {
             match running_tests.remove(&test_case) {
                 Some((start, thread)) => {
-                    traces.push(Trace{name: test_case, start, duration, thread_number: thread});
+                    traces.push(Trace {
+                        name: test_case,
+                        start,
+                        duration,
+                        thread_number: thread,
+                    });
                     trace_timer = start + duration;
                     thread_number = thread;
-                },
+                }
                 // Happens for tests that aren't run
-                None => ()
+                None => (),
             }
             continue;
         }
@@ -166,7 +171,15 @@ mod tests {
         let name = "a_test".into();
         let start = Duration::new(0, 0);
         let duration = Duration::from_millis(200);
-        assert_eq!(parse(reader), vec![Trace{name, start, duration, thread_number:0}]);
+        assert_eq!(
+            parse(reader),
+            vec![Trace {
+                name,
+                start,
+                duration,
+                thread_number: 0
+            }]
+        );
     }
 
     #[test]
@@ -179,7 +192,15 @@ mod tests {
         let name = "a_failing_test".into();
         let start = Duration::new(0, 0);
         let duration = Duration::new(10, 0);
-        assert_eq!(parse(reader), vec![Trace{name, start, duration, thread_number:0}]);
+        assert_eq!(
+            parse(reader),
+            vec![Trace {
+                name,
+                start,
+                duration,
+                thread_number: 0
+            }]
+        );
     }
 
     #[test]
@@ -203,8 +224,18 @@ mod tests {
         let start = Duration::new(0, 0);
         let duration = Duration::from_millis(200);
         let second_start = duration;
-        let test_1 = Trace{name: "test_one".into(), start, duration, thread_number:0};
-        let test_2 = Trace{name: "test_two".into(), start: second_start, duration, thread_number:0};
+        let test_1 = Trace {
+            name: "test_one".into(),
+            start,
+            duration,
+            thread_number: 0,
+        };
+        let test_2 = Trace {
+            name: "test_two".into(),
+            start: second_start,
+            duration,
+            thread_number: 0,
+        };
         assert_eq!(parse(reader), vec![test_1, test_2]);
     }
 
@@ -218,8 +249,18 @@ mod tests {
 
         let reader = BufReader::new(ctest_output.as_bytes());
         let start = Duration::new(0, 0);
-        let test_1 = Trace{name: "test_one".into(), start, duration: Duration::from_millis(200), thread_number:0};
-        let test_2 = Trace{name: "test_two".into(), start, duration: Duration::from_millis(300), thread_number:1};
+        let test_1 = Trace {
+            name: "test_one".into(),
+            start,
+            duration: Duration::from_millis(200),
+            thread_number: 0,
+        };
+        let test_2 = Trace {
+            name: "test_two".into(),
+            start,
+            duration: Duration::from_millis(300),
+            thread_number: 1,
+        };
         assert_eq!(parse(reader), vec![test_1, test_2]);
     }
 
@@ -236,9 +277,24 @@ mod tests {
 
         let reader = BufReader::new(ctest_output.as_bytes());
         let start = Duration::new(0, 0);
-        let test_1 = Trace{name: "test_one".into(), start, duration: Duration::from_millis(200), thread_number:0};
-        let test_2 = Trace{name: "test_two".into(), start, duration: Duration::from_millis(300), thread_number:1};
-        let test_3 = Trace{name: "test_three".into(), start: Duration::from_millis(200), duration: Duration::from_millis(500), thread_number:0};
+        let test_1 = Trace {
+            name: "test_one".into(),
+            start,
+            duration: Duration::from_millis(200),
+            thread_number: 0,
+        };
+        let test_2 = Trace {
+            name: "test_two".into(),
+            start,
+            duration: Duration::from_millis(300),
+            thread_number: 1,
+        };
+        let test_3 = Trace {
+            name: "test_three".into(),
+            start: Duration::from_millis(200),
+            duration: Duration::from_millis(500),
+            thread_number: 0,
+        };
         assert_eq!(parse(reader), vec![test_1, test_2, test_3]);
     }
 }
