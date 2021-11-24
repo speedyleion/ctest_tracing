@@ -3,5 +3,5 @@
 //    (See accompanying file LICENSE or copy at
 //          https://www.boost.org/LICENSE_1_0.txt)
 
-mod parser;
+pub mod parser;
 mod trace;
