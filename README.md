@@ -5,7 +5,8 @@ Turn ctest output into a tracing file for chrome's tracing view
 
 ## Example Output
 
-![Catch2 Test Tracing](https://github.com/speedyleion/ctest_tracing/tree/main/doc/assets/catch2_tests.png)
+![Catch2 Test Tracing](doc/assets/catch2_tests.png)
+
 
 The above image is the result of taking the following output, from 
 [Catch2 (v2.13.3)](https://github.com/catchorg/Catch2) tests, and feeding it 
