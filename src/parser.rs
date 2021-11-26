@@ -11,17 +11,57 @@ use nom::character::is_digit;
 use nom::sequence::tuple;
 use nom::IResult;
 use std::collections::{HashMap, VecDeque};
+use std::error::Error;
+use std::fmt;
 use std::io::{BufRead, BufReader, Read};
 use std::time::Duration;
 
-pub fn parse<R: Read>(reader: BufReader<R>) -> Vec<Trace> {
+#[derive(Debug, Clone, PartialEq)]
+struct ParseError {
+    message: String,
+}
+
+impl ParseError {
+    fn new(msg: &str) -> ParseError {
+        ParseError {
+            message: msg.to_string(),
+        }
+    }
+}
+
+impl fmt::Display for ParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+
+impl Error for ParseError {
+    fn description(&self) -> &str {
+        &self.message
+    }
+}
+
+/// Parses result output of ctest results and turns into a [`Trace`](Trace)s.
+/// Each [`Trace`](Trace) represents an individual test.
+///
+/// Will ignore and advance past output that is not ctest related.
+///
+/// # Errors
+///
+/// Returns [`ParseError`](ParseError) when there is an end of ctest but the
+/// start of said test was never seen.
+///
+/// Returns [`io::Error`](io::Error) when there is a failure to read the lines
+/// of the provided `reader`.
+///
+pub fn parse<R: Read>(reader: BufReader<R>) -> Result<Vec<Trace>, Box<dyn std::error::Error>> {
     let mut running_tests: HashMap<String, (Duration, u32)> = HashMap::new();
     let mut traces = vec![];
     let mut trace_timer = Duration::new(0, 0);
     let mut max_thread_number = 0;
     let mut free_threads = VecDeque::new();
     for l in reader.lines() {
-        let line = l.unwrap();
+        let line = l?;
         if let Ok((_, test_case)) = parse_test_start(&line) {
             let thread_number = match free_threads.pop_front() {
                 Some(number) => number,
@@ -46,11 +86,14 @@ pub fn parse<R: Read>(reader: BufReader<R>) -> Vec<Trace> {
                 });
                 trace_timer = start + duration;
                 free_threads.push_back(thread);
+            } else if !duration.is_zero() {
+                let message = format!("Saw end of \"{}\" without start indicator", test_case);
+                return Err(ParseError::new(&message).into());
             }
             continue;
         }
     }
-    traces
+    Ok(traces)
 }
 
 //  Parse a line that indicates the start of a test.
@@ -103,6 +146,8 @@ fn parse_test_finish(i: &str) -> IResult<&str, (String, Duration)> {
 
     // One could use `nom::number::complete::double` to parse the seconds, however this will lose
     // some precision, i.e. 3.32 seconds will turn into 3.319 in the duration
+    // Using unwrap here as it seems unlikely that the numbers were parsed out above, while not
+    // being able to be parsed into a u64.
     let seconds = seconds_str.parse().unwrap();
     let centis: u64 = centis_str.parse().unwrap();
     let millis = centis * 10;
@@ -178,7 +223,7 @@ mod tests {
         let start = Duration::new(0, 0);
         let duration = Duration::from_millis(200);
         assert_eq!(
-            parse(reader),
+            parse(reader).unwrap(),
             vec![Trace {
                 name,
                 start,
@@ -199,7 +244,7 @@ mod tests {
         let start = Duration::new(0, 0);
         let duration = Duration::new(10, 0);
         assert_eq!(
-            parse(reader),
+            parse(reader).unwrap(),
             vec![Trace {
                 name,
                 start,
@@ -215,7 +260,7 @@ mod tests {
             1/1 Test #1: a_failing_test ......................***Not Run   0.00 sec"#;
 
         let reader = BufReader::new(ctest_output.as_bytes());
-        assert_eq!(parse(reader), vec![]);
+        assert_eq!(parse(reader).unwrap(), vec![]);
     }
 
     #[test]
@@ -242,7 +287,7 @@ mod tests {
             duration,
             thread_number: 0,
         };
-        assert_eq!(parse(reader), vec![test_1, test_2]);
+        assert_eq!(parse(reader).unwrap(), vec![test_1, test_2]);
     }
 
     #[test]
@@ -267,7 +312,7 @@ mod tests {
             duration: Duration::from_millis(300),
             thread_number: 1,
         };
-        assert_eq!(parse(reader), vec![test_1, test_2]);
+        assert_eq!(parse(reader).unwrap(), vec![test_1, test_2]);
     }
 
     #[test]
@@ -301,7 +346,7 @@ mod tests {
             duration: Duration::from_millis(500),
             thread_number: 0,
         };
-        assert_eq!(parse(reader), vec![test_1, test_2, test_3]);
+        assert_eq!(parse(reader).unwrap(), vec![test_1, test_2, test_3]);
     }
 
     #[test]
@@ -347,7 +392,7 @@ mod tests {
             duration: Duration::from_millis(500),
             thread_number: 2,
         };
-        assert_eq!(parse(reader), vec![test_1, test_3, test_4, test_2]);
+        assert_eq!(parse(reader).unwrap(), vec![test_1, test_3, test_4, test_2]);
     }
 
     #[test]
@@ -389,6 +434,32 @@ mod tests {
             duration: Duration::from_millis(500),
             thread_number: 1,
         };
-        assert_eq!(parse(reader), vec![test_1, test_2, test_3, test_4]);
+        assert_eq!(parse(reader).unwrap(), vec![test_1, test_2, test_3, test_4]);
+    }
+
+    #[test]
+    fn test_parse_orphaned_finish() {
+        let ctest_output = r#"
+            1/1 Test #1: test_one ......................   Passed   0.50 sec
+            "#;
+
+        let reader = BufReader::new(ctest_output.as_bytes());
+        let message = "Saw end of \"test_one\" without start indicator";
+        let error = parse(reader).unwrap_err();
+        let parse_error = error.downcast_ref::<ParseError>().unwrap();
+        assert_eq!(*parse_error, ParseError::new(message));
+    }
+
+    #[test]
+    fn test_parse_orphaned_finish_different_name() {
+        let ctest_output = r#"
+            1/1 Test #1: test_two ......................   Passed   1.00 sec
+            "#;
+
+        let reader = BufReader::new(ctest_output.as_bytes());
+        let message = "Saw end of \"test_two\" without start indicator";
+        let error = parse(reader).unwrap_err();
+        let parse_error = error.downcast_ref::<ParseError>().unwrap();
+        assert_eq!(*parse_error, ParseError::new(message));
     }
 }

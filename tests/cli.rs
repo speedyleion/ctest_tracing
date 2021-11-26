@@ -6,6 +6,7 @@
 // Used for testing the main cli interface of the application
 
 use assert_cmd::Command;
+use predicates::prelude::*;
 use std::fs;
 use std::io::Write;
 use tempfile::{tempdir, NamedTempFile};
@@ -101,5 +102,45 @@ fn writing_to_nested_output_file() -> Result<(), Box<dyn std::error::Error>> {
 
     let contents = fs::read_to_string(file_path)?;
     assert_eq!(expected, contents);
+    Ok(())
+}
+
+#[test]
+fn failure_to_create_parent_dir_for_output_file() -> Result<(), Box<dyn std::error::Error>> {
+    let ctest_output = r#"
+                Start  1: test_one
+            1/1 Test #1: test_one ......................   Passed   0.20 sec
+            "#;
+    let mut cmd = Command::cargo_bin("ctest_tracing")?;
+
+    let dir = tempdir()?;
+    let file_path = dir.path().join("some/file/name.json");
+    let blocking_file = dir.path().join("some");
+    fs::write(blocking_file, "blocked")?;
+    cmd.arg("-")
+        .arg("-o")
+        .arg(file_path.as_os_str())
+        .write_stdin(ctest_output);
+
+    cmd.assert()
+        .failure()
+        .stderr(predicate::str::contains("Error creating parent directory"));
+
+    Ok(())
+}
+
+#[test]
+fn failure_on_partial_results() -> Result<(), Box<dyn std::error::Error>> {
+    let ctest_output = r#"
+                Start  2: test_two
+            1/2 Test #1: test_one ......................   Passed   0.20 sec
+            2/2 Test #2: test_two ......................   Passed   0.20 sec
+            "#;
+    let mut cmd = Command::cargo_bin("ctest_tracing")?;
+
+    cmd.write_stdin(ctest_output);
+    cmd.assert().failure().stderr(predicate::str::contains(
+        "Saw end of \\\"test_one\\\" without start indicator",
+    ));
     Ok(())
 }

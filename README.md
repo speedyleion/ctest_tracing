@@ -88,6 +88,11 @@ to generate the same trace info.
     
     $ ctest_tracing output_from_test_run.txt
     
+`ctest_tracing` will silently ignore non ctest output. The intent is to allow 
+one to wrap ctest in something like a CMake target, while not worrying about
+any of the output from the wrapper.  As long as the ctest lines themselves are
+not modified it should work fine.
+
 ### Output
 
 The output will be a minified json which follows the 
