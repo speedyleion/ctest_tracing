@@ -2,17 +2,30 @@
 [![Continuous integration](https://github.com/speedyleion/ctest_tracing/actions/workflows/rust.yml/badge.svg?branch=main)](https://github.com/speedyleion/ctest_tracing/actions/workflows/rust.yml)
 
 Turn ctest output into a tracing file for chrome's tracing view
+## Table of Contents
+* [Example Trace](#example-trace)
+    - [Example ctest Results](#example-ctest-results)
+* [Usage](#usage)
+    - [Output](#output)
+* [How It Works](#how-it-works)
+* [Inspiration](#inspiration)
 
-## Example Output
+## Example Trace
 
-![Catch2 Test Tracing](doc/assets/catch2_tests.png)
-
-
-The above image is the result of taking the following output, from 
+The following image is the result of taking the 
+[ctest](https://cmake.org/cmake/help/latest/manual/ctest.1.html) results from 
 [Catch2 (v2.13.3)](https://github.com/catchorg/Catch2) tests, and feeding it 
 through `ctest_tracing`.
 
-    $ ctest -C Debug -j12
+![Catch2 Test Tracing](doc/assets/catch2_tests.png)
+
+### Example ctest Results
+
+The [ctest](https://cmake.org/cmake/help/latest/manual/ctest.1.html) results 
+which generated the above image.  This can be fed into `ctest_tracing`, as is, 
+to generate the same trace info.
+
+    $ ctest -j12
     Test project C:/git/Catch2/bin/msvc
           Start 14: ApprovalTests
           Start  1: RunTests
@@ -67,6 +80,52 @@ through `ctest_tracing`.
     
     Total Test time (real) =   4.85 sec
 
+## Usage
+
+`ctest_tracing` supports reading ctest results from stdin or a file:
+
+    $ ctest -j12 | ctest_tracing 
+    
+    $ ctest_tracing output_from_test_run.txt
+    
+### Output
+
+The output will be a minified json which follows the 
+[Chrome trace event format](https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview).
+
+There is the `-o, --output` flag which specifies an output file to write to.  
+The output file can be nested and any parent directories will be created, 
+i.e. `some/path/to/output.json`.  
+> The choice to create parent directories was made based on frustrations of
+> having to chain commands with `mkdir` with other tools.  
+> If someone has guidance on the downsides of supporting this behavior, 
+> feedback would be appreciated.
+    
+## How it Works
+
+`ctest_tracing` uses a growing queue of identifiers.  Each time ctest 
+reports that a test is starting, via `Start #: TestName`, the new test will be 
+assigned to the next available identifier.  If the queue is empty then a 
+new identifier is created for the test. 
+
+The new test and its identifier is added to a list of running tests.
+
+Each time a test finishes via, 
+`#/# Test ##: TestName ..................  Passed    0.20 sec`, it is removed 
+from the list of running tests and its identifier is added back to the queue.
+When a test finishes that was not in the list of running tests it is ignored.  
+Non-existent tests finishing can happen when ctest reports that a test was not 
+run.
+
+`ctest_tracing` is a naive implementation which makes some assumptions based on
+the output of ctest.  
+
+It is assumed that:
+
+- ctest will start any tests it can immediately after finishing a test.
+- ctest's scheduler uses a queue reusing the oldest available job.
+
 ## Inspiration
 
-This project was inspired by [ninjatracing](https://github.com/nico/ninjatracing)
+This project was inspired by 
+[ninjatracing](https://github.com/nico/ninjatracing). 

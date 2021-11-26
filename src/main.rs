@@ -11,15 +11,21 @@ use std::io::{BufReader, Write};
 use std::path::Path;
 use structopt::StructOpt;
 
+/// Converts ctest result output into Chrome's trace event JSON format.
+///
+/// The output is minified JSON, which one should be able to visualize
+/// by navigating to `chrome://tracing` in a Chrome browser.
 #[derive(StructOpt)]
-#[structopt(name = "ctest_tracing")]
+#[structopt(name = "ctest_tracing", verbatim_doc_comment)]
 struct Opt {
     /// Input file, use '-' for stdin
     #[structopt(parse(try_from_os_str = Input::try_from_os_str), default_value="-")]
     input: Input,
 
     /// Output file '-' for stdout
-    #[structopt(long, short, parse(try_from_os_str = try_from_os_str), default_value="-")]
+    /// When a file is specified any parent directories will be
+    /// created if they don't exist
+    #[structopt(long, short, parse(try_from_os_str = try_from_os_str), default_value="-", verbatim_doc_comment)]
     output: Output,
 }
 
